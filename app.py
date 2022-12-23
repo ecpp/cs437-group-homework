@@ -93,7 +93,7 @@ def register():
     cursor.close()
     connection.close()
 
-    return "Success", 201
+    return flask.redirect('/login-user')
 
 
 @app.route('/login', methods=['POST'])
