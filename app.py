@@ -14,7 +14,13 @@ app = flask.Flask(__name__)
 SECRET_KEY = 'group-homework'
 
 
-def is_login_attempt_malicious(db_connection, login_attempt_timestamp):
+def is_login_attempt_malicious(login_attempt_timestamp):
+    db_connection = connect(
+        host=db_host,
+        user=db_user,
+        password=db_password,
+        database=db_name
+    )
     cursor = db_connection.cursor()
     end_timestamp = login_attempt_timestamp
     start_timestamp = end_timestamp - datetime.timedelta(seconds=30)
@@ -72,7 +78,7 @@ def register():
     username = flask.request.form['username']
     password = flask.request.form['password']
     password = hashlib.sha256(password.encode()).hexdigest()
-    
+
     connection = connect(host=db_host, user=db_user, password=db_password, database=db_name)
     cursor = connection.cursor()
 
@@ -103,7 +109,7 @@ def login():
     isp, country = get_isp_and_country(flask.request.remote_addr)
     if user is None:
         log_login_attempt(flask.request.remote_addr, country, isp, 'fail',
-                          is_login_attempt_malicious(connection, datetime.datetime.now()))
+                          is_login_attempt_malicious(datetime.datetime.now()))
         return 'Error: Invalid username or password', 401
     cursor.close()
     connection.close()
@@ -111,10 +117,18 @@ def login():
     token = jwt.encode({'user_id': user[0]}, SECRET_KEY, algorithm='HS256')
 
     log_login_attempt(flask.request.remote_addr, country, isp, 'success',
-                      is_login_attempt_malicious(connection, datetime.datetime.now()))
+                      is_login_attempt_malicious(datetime.datetime.now()))
     resp = flask.make_response(token)
     resp.set_cookie('token', token)
     return resp, 200
+
+
+@app.route('/logout', methods=['DELETE'])
+def logout():
+    response = flask.make_response()
+    response.delete_cookie('token')
+
+    return response, 200
 
 
 @app.route('/protected', methods=['GET'])
@@ -171,6 +185,28 @@ def admin():
 
         return flask.render_template('admin.html', logs=logs)
     return 'Not admin', 401
+
+
+@app.route('/')
+def index():
+    token = flask.request.cookies.get('token')
+    login_status = False
+    username = None
+    is_admin = False
+    if token is not None:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        except jwt.exceptions.InvalidSignatureError:
+            return 'Error: Invalid JWT', 401
+        login_status = True
+        connection = connect(host=db_host, user=db_user, password=db_password, database=db_name)
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM users WHERE id = %s", (payload['user_id'],))
+        user = cursor.fetchone()
+        username = user[1]
+        if user[4] == 'admin':
+            is_admin = True
+    return flask.render_template('index.html', logged_in=login_status, username=username, admin=is_admin)
 
 
 if __name__ == '__main__':
