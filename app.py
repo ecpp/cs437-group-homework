@@ -1,47 +1,92 @@
 import flask
+import requests
 from mysql.connector import connect
 import hashlib
 import jwt
+import datetime
 
-# Set the database connection parameters
 db_host = '91.191.173.36'
 db_user = 'erencopcu'
 db_password = 'eren1505'
 db_name = 'securitylab'
 
-# Create a Flask app
 app = flask.Flask(__name__)
-
 SECRET_KEY = 'group-homework'
 
 
-# Define the route for the endpoint
+def is_login_attempt_malicious(db_connection, login_attempt_timestamp):
+    cursor = db_connection.cursor()
+    end_timestamp = login_attempt_timestamp
+    start_timestamp = end_timestamp - datetime.timedelta(seconds=30)
+
+    query = '''
+        SELECT COUNT(*)
+        FROM login_attempts
+        WHERE timestamp >= %s AND timestamp <= %s
+    '''
+    cursor.execute(query, (start_timestamp, end_timestamp))
+    attempts = cursor.fetchone()[0]
+
+    cursor.close()
+
+    if attempts >= 5:
+        return 'malicious'
+    else:
+        return 'normal'
+
+
+def get_isp_and_country(ip_address):
+    whois_server = 'ipleak.net'
+    ip_address = '176.33.69.178'
+    response = requests.get(f'https://{whois_server}/{ip_address}')
+    isp = response.text.split('ISP: ')[1].split(' ')[0]
+    isp = isp.replace('</td><td>', '')
+    country = response.text.split('Country: ')[1].split(' ')[3]
+    country = country.split('"')[1]
+    return isp, country
+
+
+def log_login_attempt(ip_address, country, whois, status, verdict):
+    # Connect to the database
+    connection = connect(
+        host=db_host,
+        user=db_user,
+        password=db_password,
+        database=db_name
+    )
+
+    cursor = connection.cursor()
+
+    sql = "INSERT INTO login_attempts (ip_address, country, whois, status, attempt, verdict) VALUES (%s, %s, %s, %s, %s, %s)"
+    values = (ip_address, country, whois, status, 'login', verdict)
+    cursor.execute(sql, values)
+
+    connection.commit()
+
+    cursor.close()
+    connection.close()
+
+
 @app.route('/register', methods=['POST'])
 def register():
-    # Get the data from the POST request without json.
     username = flask.request.form['username']
     password = flask.request.form['password']
     password = hashlib.sha256(password.encode()).hexdigest()
-
-    # Connect to the database
+    
     connection = connect(host=db_host, user=db_user, password=db_password, database=db_name)
     cursor = connection.cursor()
 
-    # check if user exists
     cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
     user = cursor.fetchone()
     if user:
         return "User already exists", 400
 
-    # Insert the username and password into the users table
     cursor.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, password))
     connection.commit()
 
-    # Close the cursor and connection
     cursor.close()
     connection.close()
 
-    # Return a success response
     return "Success", 201
 
 
@@ -55,20 +100,79 @@ def login():
     cursor = connection.cursor()
     cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
     user = cursor.fetchone()
-    if user is None or not user.check_password(password):
+    isp, country = get_isp_and_country(flask.request.remote_addr)
+    if user is None:
+        log_login_attempt(flask.request.remote_addr, country, isp, 'fail',
+                          is_login_attempt_malicious(connection, datetime.datetime.now()))
         return 'Error: Invalid username or password', 401
-
     cursor.close()
     connection.close()
 
-    return 'User logged in successfully'
+    token = jwt.encode({'user_id': user[0]}, SECRET_KEY, algorithm='HS256')
+
+    log_login_attempt(flask.request.remote_addr, country, isp, 'success',
+                      is_login_attempt_malicious(connection, datetime.datetime.now()))
+    resp = flask.make_response(token)
+    resp.set_cookie('token', token)
+    return resp, 200
+
+
+@app.route('/protected', methods=['GET'])
+def protected():
+    token = flask.request.cookies.get('token')
+    if token is None:
+        return 'Error: No token provided', 401
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+    except jwt.exceptions.InvalidSignatureError:
+        return 'Error: Invalid JWT', 401
+    return 'Success', 200
 
 
 @app.route('/register-user')
 def show_registration_page():
-    return flask.render_template('userregister.html')
+    return flask.render_template('register.html')
 
 
-# Run the Flask app
+@app.route('/login-user')
+def show_login_page():
+    token = flask.request.cookies.get('token')
+    if token is not None:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        except jwt.exceptions.InvalidSignatureError:
+            return 'Error: Invalid JWT', 401
+        return 'Already logged in', 200
+    return flask.render_template('login.html')
+
+
+@app.route('/is-logged-in')
+def is_logged_in():
+    return flask.render_template('protected.html')
+
+
+@app.route('/admin')
+def admin():
+    token = flask.request.cookies.get('token')
+    if token is None:
+        return 'Error: Not logged in', 401
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+    except jwt.exceptions.InvalidSignatureError:
+        return 'Error: Invalid JWT', 401
+    connection = connect(host=db_host, user=db_user, password=db_password, database=db_name)
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = %s", (payload['user_id'],))
+    user = cursor.fetchone()
+    if user[4] == 'admin':
+        cursor.execute("SELECT * FROM login_attempts ORDER BY timestamp DESC")
+        logs = cursor.fetchall()
+
+        return flask.render_template('admin.html', logs=logs)
+    return 'Not admin', 401
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.config['DEBUG'] = True
+    app.run(host='0.0.0.0', port=5000, debug=True)
