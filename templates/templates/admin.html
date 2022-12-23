@@ -1,0 +1,64 @@
+<head>
+  <style>
+    /* Add some basic styling to the page */
+    body {
+      font-family: Arial, sans-serif;
+    }
+    h1 {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    /* Style the table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+    }
+    th {
+      background-color: #ddd;
+    }
+    tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+
+    /* Style the links */
+    a {
+      color: #0077cc;
+      text-decoration: none;
+    }
+    a:hover {
+      color: #0099ff;
+    }
+  </style>
+    <title></title>
+</head>
+<body>
+  <h1>Admin Page</h1>
+
+  <!-- Display the logs in a table -->
+  <table>
+    <tr>
+      <th>Timestamp</th>
+      <th>IP Address</th>
+      <th>Country</th>
+      <th>ISP</th>
+      <th>Status</th>
+        <th>Attempt</th>
+      <th>Verdict</th>
+  </tr>
+  {% for log in logs %}
+  <tr>
+    <td>{{ log[1] }}</td>
+    <td>{{ log[2] }}</td>
+    <td>{{ log[3] }}</td>
+    <td>{{ log[4] }}</td>
+    <td>{{ log[5] }}</td>
+      <td>{{ log[6] }}</td>
+    <td>{{ log[7] }}</td>
+  </tr>
+  {% endfor %}
+</table>

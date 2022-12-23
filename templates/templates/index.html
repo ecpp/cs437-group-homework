@@ -1,0 +1,75 @@
+<!-- index.html template -->
+<head>
+  <style>
+    /* Add some basic styling to the page */
+    body {
+      font-family: Arial, sans-serif;
+    }
+    h1 {
+      text-align: center;
+      margin: 20px 0;
+    }
+    p {
+      margin: 20px 0;
+        text-align: center;
+    }
+    a {
+      color: #0077cc;
+      text-decoration: none;
+    }
+    a:hover {
+      color: #0099ff;
+    }
+    button {
+      display: block;
+        margin: 0 auto;
+        background-color: #4CAF50;
+        color: white;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+    <title></title>
+</head>
+<body>
+  <!-- Display the welcome message and login link based on the user's login status -->
+  {% if logged_in %}
+  <h1>Welcome</h1>
+  <p>You are logged in as {{ username }}</p>
+      {% if admin %}
+        <p>Admin status granted.</p>
+          <p><a href="/admin">See logs</a></p>
+        {% endif %}
+     <button onclick="logout()">Logout</button>
+
+  {% else %}
+  <h1>Welcome</h1>
+  <p>You are not logged in. Please <a href="/login-user">login here</a>.</p>
+  {% endif %}
+<script>
+    function logout() {
+      // Send a DELETE request to the /logout route
+      fetch('/logout', {
+        method: 'DELETE'
+      })
+        .then(response => {
+          // Check if the request was successful
+          if (response.ok) {
+            // Redirect the user to the login page
+            window.location.href = '/';
+          } else {
+            throw new Error('Error: Could not log out');
+          }
+        })
+        .catch(error => {
+          // Display an error message
+          alert(error.message);
+        });
+    }
+  </script>
+</body>
