@@ -54,7 +54,7 @@ def get_isp_and_country(ip_address):
     return isp, country
 
 
-def log_login_attempt(ip_address, country, whois, status, verdict):
+def log_login_attempt(ip_address, country, whois, status, verdict, virusTotalString):
     # Connect to the database
     connection = connect(
         host=db_host,
@@ -65,8 +65,8 @@ def log_login_attempt(ip_address, country, whois, status, verdict):
 
     cursor = connection.cursor()
 
-    sql = "INSERT INTO login_attempts (ip_address, country, whois, status, attempt, verdict) VALUES (%s, %s, %s, %s, %s, %s)"
-    values = (ip_address, country, whois, status, 'login', verdict)
+    sql = "INSERT INTO login_attempts (ip_address, country, whois, status, attempt, verdict, VirusTotalInfo) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+    values = (ip_address, country, whois, status, 'login', verdict, virusTotalString)
     cursor.execute(sql, values)
 
     connection.commit()
@@ -109,9 +109,23 @@ def login():
     cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
     user = cursor.fetchone()
     isp, country = get_isp_and_country(flask.request.remote_addr)
+
+    url = f"https://www.virustotal.com/api/v3/ip_addresses/{flask.request.remote_addr}"
+
+    headers = {"x-apikey":"af966f850472ecf26721001e6896ea600de1049fa2bed03a6f63eb1aff0da156","accept": "application/json"} # my API KEY
+
+    response = requests.get(url, headers=headers)
+    virusTotalInfo=""
+    data = response.json()
+    virusTotalInfo+="Harmless: "+str(data["data"]["attributes"]["last_analysis_stats"]["harmless"])+" "
+    virusTotalInfo+="Malicious: "+str(data["data"]["attributes"]["last_analysis_stats"]["malicious"])+" "
+    virusTotalInfo+="Suspicious: "+str(data["data"]["attributes"]["last_analysis_stats"]["suspicious"])+" "
+    virusTotalInfo+="Undetected: "+str(data["data"]["attributes"]["last_analysis_stats"]["undetected"])+" "
+    virusTotalInfo+="Reputation: "+str(data["data"]["attributes"]["reputation"])
+
     if user is None:
         log_login_attempt(flask.request.remote_addr, country, isp, 'fail',
-                          is_login_attempt_malicious(datetime.datetime.now()))
+                          is_login_attempt_malicious(datetime.datetime.now()), virusTotalInfo)
         return 'Error: Invalid username or password', 401
     cursor.close()
     connection.close()
@@ -119,7 +133,7 @@ def login():
     token = jwt.encode({'user_id': user[0]}, SECRET_KEY, algorithm='HS256')
 
     log_login_attempt(flask.request.remote_addr, country, isp, 'success',
-                      is_login_attempt_malicious(datetime.datetime.now()))
+                      is_login_attempt_malicious(datetime.datetime.now()), virusTotalInfo)
     resp = flask.make_response(token)
     resp.set_cookie('token', token)
     return resp, 200
@@ -148,15 +162,29 @@ def api_login():
     cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
     user = cursor.fetchone()
     isp, country = get_isp_and_country(flask.request.remote_addr)
+
+    url = f"https://www.virustotal.com/api/v3/ip_addresses/{flask.request.remote_addr}"
+
+    headers = {"x-apikey":"af966f850472ecf26721001e6896ea600de1049fa2bed03a6f63eb1aff0da156","accept": "application/json"} # my API KEY
+
+    response = requests.get(url, headers=headers)
+    virusTotalInfo=""
+    data = response.json()
+    virusTotalInfo+="Harmless: "+str(data["data"]["attributes"]["last_analysis_stats"]["harmless"])+" "
+    virusTotalInfo+="Malicious: "+str(data["data"]["attributes"]["last_analysis_stats"]["malicious"])+" "
+    virusTotalInfo+="Suspicious: "+str(data["data"]["attributes"]["last_analysis_stats"]["suspicious"])+" "
+    virusTotalInfo+="Undetected: "+str(data["data"]["attributes"]["last_analysis_stats"]["undetected"])+" "
+    virusTotalInfo+="Reputation: "+str(data["data"]["attributes"]["reputation"])
+
     if user is None:
         log_login_attempt(flask.request.remote_addr, country, isp, 'fail',
-                          is_login_attempt_malicious(datetime.datetime.now()))
+                          is_login_attempt_malicious(datetime.datetime.now()), virusTotalInfo)
         return flask.jsonify({'result': "Incorrect username and/or password!"})
     cursor.close()
     connection.close()
 
     log_login_attempt(flask.request.remote_addr, country, isp, 'success',
-                      is_login_attempt_malicious(datetime.datetime.now()))
+                      is_login_attempt_malicious(datetime.datetime.now()), virusTotalInfo)
     return flask.jsonify({'result': "Success! You're in."})
 
 # Password recovery REST API endpoint is below.
