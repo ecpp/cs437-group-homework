@@ -5,7 +5,7 @@ import hashlib
 import jwt
 import datetime
 import random
-import string
+import json
 
 db_host = '91.191.173.36'
 db_user = 'erencopcu'
@@ -123,6 +123,74 @@ def login():
     resp = flask.make_response(token)
     resp.set_cookie('token', token)
     return resp, 200
+
+@app.route('/api/password_recovery_info')
+def api_password_recovery_info():
+    return flask.render_template('passwordrecoveryinfo.html')
+
+@app.route('/api/login_info')
+def api_login_info():
+    return flask.render_template('logininfoapi.html')
+
+# Authentication REST API endpoint is below.
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    # Parse the JSON data from the request
+    data = flask.request.get_json()
+
+    # Extract two fields from the data
+    username = str(data['username'])
+    password = str(data['password'])
+    password = hashlib.sha256(password.encode()).hexdigest()
+
+    connection = connect(host=db_host, user=db_user, password=db_password, database=db_name)
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
+    user = cursor.fetchone()
+    isp, country = get_isp_and_country(flask.request.remote_addr)
+    if user is None:
+        log_login_attempt(flask.request.remote_addr, country, isp, 'fail',
+                          is_login_attempt_malicious(datetime.datetime.now()))
+        return flask.jsonify({'result': "Incorrect username and/or password!"})
+    cursor.close()
+    connection.close()
+
+    log_login_attempt(flask.request.remote_addr, country, isp, 'success',
+                      is_login_attempt_malicious(datetime.datetime.now()))
+    return flask.jsonify({'result': "Success! You're in."})
+
+# Password recovery REST API endpoint is below.
+@app.route('/api/password_recovery', methods=['POST'])
+def api_password_recovery():
+    # Parse the JSON data from the request
+    data = flask.request.get_json()
+
+    # Extract the three fields from the data
+    username = str(data['username'])
+    code = int(data['reset-code'])
+    password = str(data['new-password'])
+
+    # Database connection
+    connection = connect(host=db_host, user=db_user, password=db_password, database=db_name)
+    cursor = connection.cursor()
+
+    cursor.execute(f"SELECT * FROM users WHERE username = '{username}' and resetcode = {int(code)}")
+    correct = cursor.fetchone()
+
+    if correct:
+        password = hashlib.sha256(password.encode()).hexdigest()
+        cursor.execute(f"UPDATE `users` SET `password` = '{password}' WHERE `users`.`username` = '{username}'")
+        connection.commit()
+        cursor.close()
+        connection.close()
+
+        # Return the result as a JSON response
+        return flask.jsonify({'result': "Success! Changed password."})
+    else:
+        cursor.close()
+        connection.close()
+        # Return the result as a JSON response
+        return flask.jsonify({'result': "Incorrect username and/or reset-code!"})
 
 
 @app.route('/logout', methods=['DELETE'])
