@@ -4,6 +4,8 @@ from mysql.connector import connect
 import hashlib
 import jwt
 import datetime
+import random
+import string
 
 db_host = '91.191.173.36'
 db_user = 'erencopcu'
@@ -143,11 +145,92 @@ def protected():
         return 'Error: Invalid JWT', 401
     return 'Success', 200
 
+usernameWhoForgotPassword=""
 
 @app.route('/register-user')
 def show_registration_page():
     return flask.render_template('register.html')
 
+@app.route('/forget-password-user')
+def show_general_forget_page():
+    return flask.render_template('generalforget.html')
+
+@app.route('/forget-password-user-not-found')
+def show_username_not_found_forget_password():
+    return flask.render_template('usernamenotfound.html')
+
+@app.route('/created_new_password', methods=['POST'])
+def change_password():
+    password = flask.request.form['password']
+    password = hashlib.sha256(password.encode()).hexdigest()
+
+    connection = connect(host=db_host, user=db_user, password=db_password, database=db_name)
+    cursor = connection.cursor()
+    global usernameWhoForgotPassword
+    if(usernameWhoForgotPassword!=""):
+        cursor.execute(f"UPDATE `users` SET `password` = '{password}' WHERE `users`.`username` = '{usernameWhoForgotPassword}'")
+        connection.commit()
+
+    cursor.close()
+    connection.close()
+
+    return flask.redirect('/login-user')
+
+@app.route('/reset_password')
+def reset_password():
+    global usernameWhoForgotPassword
+    if(usernameWhoForgotPassword==""):
+        return flask.redirect('/login-user')
+    return flask.render_template('passwordreset.html', username=usernameWhoForgotPassword)
+
+@app.route('/forget_password_enter_reset_code/<usernameArgument>')
+def enter_reset_code(usernameArgument):
+    return flask.render_template('resetcode.html', username=usernameArgument)
+
+@app.route('/reset_code_check/<username>', methods=['POST'])
+def reset_code_check(username):
+    code = flask.request.form['code']
+
+    connection = connect(host=db_host, user=db_user, password=db_password, database=db_name)
+    cursor = connection.cursor()
+
+    cursor.execute(f"SELECT * FROM users WHERE username = '{username}' and resetcode = {int(code)}")
+    correct = cursor.fetchone()
+
+    cursor.close()
+    connection.close()
+
+    if correct:
+        #print("Correct code!")
+        global usernameWhoForgotPassword
+        usernameWhoForgotPassword=str(username)
+        return flask.redirect('/reset_password')
+    else:
+        return flask.redirect(flask.url_for('enter_reset_code', usernameArgument = username))
+
+@app.route('/general_forget_username', methods=['POST'])
+def check_username_in_forget_password():
+    username = flask.request.form['username']
+    userExists=False
+    connection = connect(host=db_host, user=db_user, password=db_password, database=db_name)
+    cursor = connection.cursor()
+
+    cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+    user = cursor.fetchone()
+    if user:
+        userExists=True
+    if(userExists):
+        #UPDATE `users` SET `resetcode` = '1907' WHERE `users`.`id` = 4;
+        number = random.randint(1000,9999)
+        print(f'Random number: {number}')
+        cursor.execute(f"UPDATE `users` SET `resetcode` = '{number}' WHERE `users`.`username` = '{str(username)}'")
+        connection.commit()
+        cursor.close()
+        connection.close()
+        return flask.redirect(flask.url_for('enter_reset_code', usernameArgument = username))
+        #return flask.redirect('/forget-password-enter-reset-code', usernameArgument=str(username))
+    else:
+        return flask.redirect('/forget-password-user-not-found')
 
 @app.route('/login-user')
 def show_login_page():
