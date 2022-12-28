@@ -146,7 +146,8 @@ def login():
 
     if user is None:
         log_attempt(flask.request.remote_addr, country, isp, 'fail',
-                    is_attempt_malicious(datetime.datetime.now()), 'login',
+                    'login',
+                    is_attempt_malicious(datetime.datetime.now()),
                     get_virustotal_info(flask.request.remote_addr))
         return 'Error: Invalid username or password', 401
     cursor.close()
@@ -155,7 +156,9 @@ def login():
     token = jwt.encode({'user_id': user[0]}, SECRET_KEY, algorithm='HS256')
 
     log_attempt(flask.request.remote_addr, country, isp, 'success',
-                is_attempt_malicious(datetime.datetime.now()), 'login', get_virustotal_info(flask.request.remote_addr))
+                'login',
+                is_attempt_malicious(datetime.datetime.now()),
+                get_virustotal_info(flask.request.remote_addr))
     resp = flask.make_response(token)
     resp.set_cookie('token', token)
     return resp, 200
@@ -190,14 +193,16 @@ def api_login():
 
     if user is None:
         log_attempt(flask.request.remote_addr, country, isp, 'fail',
-                    is_attempt_malicious(datetime.datetime.now()), 'login',
+                    'login',
+                    is_attempt_malicious(datetime.datetime.now()),
                     get_virustotal_info(flask.request.remote_addr))
         return flask.jsonify({'result': "Incorrect username and/or password!"})
     cursor.close()
     connection.close()
 
     log_attempt(flask.request.remote_addr, country, isp, 'success',
-                is_attempt_malicious(datetime.datetime.now()), 'login', get_virustotal_info(flask.request.remote_addr))
+                'login',
+                is_attempt_malicious(datetime.datetime.now()),  get_virustotal_info(flask.request.remote_addr))
     return flask.jsonify({'result': "Success! You're in."})
 
 
@@ -227,7 +232,8 @@ def api_password_recovery():
         cursor.close()
         connection.close()
         log_attempt(flask.request.remote_addr, country, isp, 'success',
-                    is_attempt_malicious(datetime.datetime.now()), 'password_recovery',
+                    'password_recovery',
+                    is_attempt_malicious(datetime.datetime.now()),
                     get_virustotal_info(flask.request.remote_addr))
         # Return the result as a JSON response
         return flask.jsonify({'result': "Success! Changed password."})
@@ -235,7 +241,8 @@ def api_password_recovery():
         cursor.close()
         connection.close()
         log_attempt(flask.request.remote_addr, country, isp, 'fail',
-                    is_attempt_malicious(datetime.datetime.now()), 'password_recovery',
+                    'password_recovery',
+                    is_attempt_malicious(datetime.datetime.now()),
                     get_virustotal_info(flask.request.remote_addr))
         # Return the result as a JSON response
         return flask.jsonify({'result': "Incorrect username and/or reset-code!"})
@@ -343,12 +350,14 @@ def reset_code_check(username):
         global usernameWhoForgotPassword
         usernameWhoForgotPassword = str(username)
         log_attempt(flask.request.remote_addr, country, isp, 'success',
-                    is_attempt_malicious(datetime.datetime.now()), 'password_recovery',
+                    'reset_code_check',
+                    is_attempt_malicious(datetime.datetime.now()),
                     get_virustotal_info(flask.request.remote_addr))
         return flask.redirect('/reset_password')
     else:
         log_attempt(flask.request.remote_addr, country, isp, 'fail',
-                    is_attempt_malicious(datetime.datetime.now()), 'password_recovery',
+                    'reset_code_check',
+                    is_attempt_malicious(datetime.datetime.now()),
                     get_virustotal_info(flask.request.remote_addr))
         return flask.redirect(flask.url_for('enter_reset_code', usernameArgument=username))
 
@@ -379,13 +388,15 @@ def check_username_in_forget_password():
         cursor.close()
         connection.close()
         log_attempt(flask.request.remote_addr, country, isp, 'success',
-                    is_attempt_malicious(datetime.datetime.now()), 'create_recovery_code',
+                    'create_reset_code',
+                    is_attempt_malicious(datetime.datetime.now()),
                     get_virustotal_info(flask.request.remote_addr))
         return flask.redirect(flask.url_for('enter_reset_code', usernameArgument=username))
         # return flask.redirect('/forget-password-enter-reset-code', usernameArgument=str(username))
     else:
         log_attempt(flask.request.remote_addr, country, isp, 'fail',
-                    is_attempt_malicious(datetime.datetime.now()), 'create_recovery_code',
+                    'create_reset_code',
+                    is_attempt_malicious(datetime.datetime.now()),
                     get_virustotal_info(flask.request.remote_addr))
         return flask.redirect('/forget-password-user-not-found')
 
