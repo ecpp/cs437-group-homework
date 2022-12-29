@@ -20,18 +20,21 @@ SECRET_KEY = 'group-homework'
 
 # API request to VirusTotal to retrieve information about an IP address.
 def get_virustotal_info(ip_address):
-    url = VIRUSTOTAL_API_URL + ip_address
-    headers = {"x-apikey": VIRUSTOTAL_API_KEY,
-               "accept": "application/json"}  # my API KEY
+    try:
+        url = VIRUSTOTAL_API_URL + ip_address
+        headers = {"x-apikey": VIRUSTOTAL_API_KEY,
+                   "accept": "application/json"}  # my API KEY
 
-    response = requests.get(url, headers=headers)
-    info = ""
-    data = response.json()
-    info += "Harmless: " + str(data["data"]["attributes"]["last_analysis_stats"]["harmless"]) + " "
-    info += "Malicious: " + str(data["data"]["attributes"]["last_analysis_stats"]["malicious"]) + " "
-    info += "Suspicious: " + str(data["data"]["attributes"]["last_analysis_stats"]["suspicious"]) + " "
-    info += "Undetected: " + str(data["data"]["attributes"]["last_analysis_stats"]["undetected"]) + " "
-    info += "Reputation: " + str(data["data"]["attributes"]["reputation"])
+        response = requests.get(url, headers=headers)
+        info = ""
+        data = response.json()
+        info += "Harmless: " + str(data["data"]["attributes"]["last_analysis_stats"]["harmless"]) + " "
+        info += "Malicious: " + str(data["data"]["attributes"]["last_analysis_stats"]["malicious"]) + " "
+        info += "Suspicious: " + str(data["data"]["attributes"]["last_analysis_stats"]["suspicious"]) + " "
+        info += "Undetected: " + str(data["data"]["attributes"]["last_analysis_stats"]["undetected"]) + " "
+        info += "Reputation: " + str(data["data"]["attributes"]["reputation"])
+    except:
+        info = "API RATE EXCEEDED"
     return info
 
 
@@ -202,7 +205,7 @@ def api_login():
 
     log_attempt(flask.request.remote_addr, country, isp, 'success',
                 'login',
-                is_attempt_malicious(datetime.datetime.now()),  get_virustotal_info(flask.request.remote_addr))
+                is_attempt_malicious(datetime.datetime.now()), get_virustotal_info(flask.request.remote_addr))
     return flask.jsonify({'result': "Success! You're in."})
 
 
@@ -307,7 +310,7 @@ def change_password():
         cursor.execute(
             f"UPDATE `users` SET `password` = '{password}' WHERE `users`.`username` = '{usernameWhoForgotPassword}'")
         connection.commit()
-
+    usernameWhoForgotPassword = ""
     cursor.close()
     connection.close()
 
