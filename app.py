@@ -72,7 +72,6 @@ def is_attempt_malicious(attempt_timestamp):
 # Returns the ISP and country
 def get_isp_and_country(ip_address):
     whois_server = 'ipleak.net'
-    ip_address = '176.33.69.178'
     response = requests.get(f'https://{whois_server}/{ip_address}')
     isp = response.text.split('ISP: ')[1].split(' ')[0]
     isp = isp.replace('</td><td>', '')
